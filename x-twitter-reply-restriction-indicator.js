@@ -26,19 +26,33 @@
     }
 
     function isEveryoneCanReply() {
-        // PC: 返信制限ボタンの aria-label で判定
-        if (
+        const btn =
             document.querySelector('[aria-label="全員が返信できます"]') ||
-            document.querySelector('[aria-label="Everyone can reply"]')
-        ) {
-            return true;
+            document.querySelector('[aria-label="Everyone can reply"]');
+
+        if (!btn) {
+            // スマホ fallback: body 全体テキスト
+            const bodyText = document.body.innerText;
+            return (
+                bodyText.includes('全員が返信できます') ||
+                bodyText.toLowerCase().includes('everyone can reply')
+            );
         }
-        // スマホ fallback: body 全体テキスト
-        const bodyText = document.body.innerText;
-        return (
-            bodyText.includes('全員が返信できます') ||
-            bodyText.toLowerCase().includes('everyone can reply')
-        );
+
+        // リプライモード判定:
+        // #layers 内に「コンポーズエリアより前に存在する article」があれば返信先ツイートがある
+        const composer = document.querySelector('[data-testid="tweetTextarea_0"]');
+        if (composer) {
+            const articles = document.querySelectorAll('#layers article[role="article"]');
+            for (const article of articles) {
+                // DOCUMENT_POSITION_FOLLOWING(4): composer は article より後にある
+                if (article.compareDocumentPosition(composer) & 4) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
     }
 
     function dispatchRealClick(el) {
