@@ -76,7 +76,7 @@
                 bodyText.includes('全員が返信できます') ||
                 bodyText.toLowerCase().includes('everyone can reply')
             ) {
-                alert('⚠️ 返信設定が「全員」なのです！');
+                alert('⚠️ 返信設定が「全員」になっています');
                 return;
             }
 
