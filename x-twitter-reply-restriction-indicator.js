@@ -1,9 +1,15 @@
 // ==UserScript==
-// @name         X/Twitter Reply Restriction Indicator
-// @namespace    http://tampermonkey.net/
-// @version      0.1.0
+// @name         X/Twitter - Reply Restriction Indicator
+// @namespace    https://github.com/aiya000/
+// @version      0.2.0
+// @description  Warns when reply settings are set to "everyone" before posting on https://x.com
+// @author       aiya000
 // @match        https://x.com/*
-// @grant        none
+// @match        https://twitter.com/*
+// @grant        GM_getValue
+// @grant        GM_setValue
+// @grant        GM_registerMenuCommand
+// @grant        GM_unregisterMenuCommand
 // ==/UserScript==
 
 (function () {
@@ -12,8 +18,13 @@
     let overlay = null;
     let targetBtn = null;
     let lastUrl = location.href;
+    let intervalId = null;
+    let menuCommandId = null;
 
-    // 🔥 React対応クリック
+    function isEnabled() {
+        return GM_getValue('enabled', true);
+    }
+
     function dispatchRealClick(el) {
         ['pointerdown','mousedown','pointerup','mouseup','click'].forEach(type => {
             el.dispatchEvent(new MouseEvent(type, {
@@ -71,7 +82,6 @@
 
             const bodyText = document.body.innerText;
 
-            // ❌ NG
             if (
                 bodyText.includes('全員が返信できます') ||
                 bodyText.toLowerCase().includes('everyone can reply')
@@ -80,7 +90,6 @@
                 return;
             }
 
-            // ✅ OK → 本物クリック
             dispatchRealClick(targetBtn);
         });
 
@@ -88,9 +97,7 @@
         updateOverlayPosition();
     }
 
-    // ⭐ モバイル対応：投稿画面検出
     function findPostButton() {
-        // 投稿テキストエリアがあるか
         const composer =
             document.querySelector('[data-testid="tweetTextarea_0"]') ||
             document.querySelector('[aria-label="ポストテキスト"]');
@@ -113,28 +120,66 @@
         return null;
     }
 
-    // 🔁 メインループ
-    setInterval(() => {
+    function startLoop() {
+        if (intervalId) return;
 
-        // URL変化で消す
-        if (location.href !== lastUrl) {
-            lastUrl = location.href;
-            removeOverlay();
+        intervalId = setInterval(() => {
+            if (location.href !== lastUrl) {
+                lastUrl = location.href;
+                removeOverlay();
+            }
+
+            const btn = findPostButton();
+
+            if (!btn) {
+                removeOverlay();
+                return;
+            }
+
+            if (btn !== targetBtn) {
+                createOverlay(btn);
+            }
+
+            updateOverlayPosition();
+        }, 200);
+    }
+
+    function stopLoop() {
+        if (intervalId) {
+            clearInterval(intervalId);
+            intervalId = null;
+        }
+        removeOverlay();
+    }
+
+    function registerMenu() {
+        if (menuCommandId !== null) {
+            GM_unregisterMenuCommand(menuCommandId);
         }
 
-        const btn = findPostButton();
+        const enabled = isEnabled();
+        const label = enabled
+            ? '返信制限チェック: 有効（クリックで無効）'
+            : '返信制限チェック: 無効（クリックで有効）';
 
-        if (!btn) {
-            removeOverlay();
-            return;
-        }
+        menuCommandId = GM_registerMenuCommand(label, () => {
+            const newEnabled = !isEnabled();
+            GM_setValue('enabled', newEnabled);
 
-        if (btn !== targetBtn) {
-            createOverlay(btn);
-        }
+            if (newEnabled) {
+                startLoop();
+            } else {
+                stopLoop();
+            }
 
-        updateOverlayPosition();
+            registerMenu();
+        });
+    }
 
-    }, 200);
+    registerMenu();
+
+    if (isEnabled()) {
+        startLoop();
+    }
 
 })();
