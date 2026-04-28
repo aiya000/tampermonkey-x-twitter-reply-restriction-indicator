@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         X/Twitter - Reply Restriction Indicator
 // @namespace    https://github.com/aiya000/
-// @version      0.2.0
+// @version      0.3.0
 // @description  Warns when reply settings are set to "everyone" before posting on https://x.com
 // @author       aiya000
 // @match        https://x.com/*
@@ -25,12 +25,29 @@
         return GM_getValue('enabled', true);
     }
 
+    function isEveryoneCanReply() {
+        // PC: 返信制限ボタンの aria-label で判定
+        if (
+            document.querySelector('[aria-label="全員が返信できます"]') ||
+            document.querySelector('[aria-label="Everyone can reply"]')
+        ) {
+            return true;
+        }
+        // スマホ fallback: body 全体テキスト
+        const bodyText = document.body.innerText;
+        return (
+            bodyText.includes('全員が返信できます') ||
+            bodyText.toLowerCase().includes('everyone can reply')
+        );
+    }
+
     function dispatchRealClick(el) {
+        const view = el.ownerDocument.defaultView;
         ['pointerdown','mousedown','pointerup','mouseup','click'].forEach(type => {
             el.dispatchEvent(new MouseEvent(type, {
                 bubbles: true,
                 cancelable: true,
-                view: window
+                view
             }));
         });
     }
@@ -80,12 +97,7 @@
         overlay.addEventListener('click', (e) => {
             e.stopPropagation();
 
-            const bodyText = document.body.innerText;
-
-            if (
-                bodyText.includes('全員が返信できます') ||
-                bodyText.toLowerCase().includes('everyone can reply')
-            ) {
+            if (isEveryoneCanReply()) {
                 alert('⚠️ 返信設定が「全員」になっています');
                 return;
             }
@@ -104,6 +116,13 @@
 
         if (!composer) return null;
 
+        // PC: data-testid で直接取得
+        const directBtn =
+            document.querySelector('[data-testid="tweetButton"]') ||
+            document.querySelector('[data-testid="tweetButtonInline"]');
+        if (directBtn) return directBtn;
+
+        // スマホ fallback: テキストで検索
         const buttons = document.querySelectorAll('[role="button"]');
 
         for (const btn of buttons) {
